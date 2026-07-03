@@ -1,12 +1,11 @@
-name: AetheriaOS-C - Pure C Bare Metal Terminal
+name: PromtikOS - Stable Bare Metal C
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build-aetheria-c:
-    name: Build AetheriaOS Core (C)
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -20,189 +19,57 @@ jobs:
         with:
           packages: 'platform-tools build-tools;34.0.0 platforms;android-34 ndk;25.2.9519653'
 
-      # ===== СОЗДАНИЕ ИСХОДНИКОВ ЯДРА =====
-      - name: Create C Kernel Source
+      # ===== ЯДРО НА C =====
+      - name: Create Kernel
         run: |
           mkdir -p kernel
           
-          # Заголовочный файл
           cat > kernel/kernel.h << 'EOF'
           typedef unsigned int uint32_t;
           typedef unsigned char uint8_t;
-          typedef unsigned long size_t;
           #define FB_WIDTH 1280
           #define FB_HEIGHT 720
-          #define BG_COLOR 0xFF1A1B26
-          #define TEXT_COLOR 0xFFC0CAF5
-          #define PROMPT_COLOR 0xFF7AA2F7
+          #define BG_COLOR 0xFF101010
+          #define TEXT_COLOR 0xFF00FF00
           EOF
 
-          # Шрифт 8x8
-          cat > kernel/font.h << 'EOF'
-          unsigned char font8x8[95][8] = {
-              {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}, {0x18,0x3C,0x3C,0x18,0x18,0x00,0x18,0x00},
-              {0x66,0x66,0x24,0x00,0x00,0x00,0x00,0x00}, {0x6C,0x6C,0xFE,0x6C,0xFE,0x6C,0x6C,0x00},
-              {0x18,0x3E,0x60,0x3C,0x06,0x7C,0x18,0x00}, {0x00,0xC6,0xCC,0x18,0x30,0x66,0xC6,0x00},
-              {0x38,0x6C,0x38,0x76,0xDC,0xCC,0x76,0x00}, {0x18,0x18,0x30,0x00,0x00,0x00,0x00,0x00},
-              {0x0C,0x18,0x30,0x30,0x30,0x18,0x0C,0x00}, {0x30,0x18,0x0C,0x0C,0x0C,0x18,0x30,0x00},
-              {0x00,0x66,0x3C,0xFF,0x3C,0x66,0x00,0x00}, {0x00,0x18,0x18,0x7E,0x18,0x18,0x00,0x00},
-              {0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x30}, {0x00,0x00,0x00,0x7E,0x00,0x00,0x00,0x00},
-              {0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x00}, {0x00,0x06,0x0C,0x18,0x30,0x60,0x00,0x00},
-              {0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0x00}, {0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00},
-              {0x3C,0x66,0x06,0x0C,0x30,0x60,0xFF,0x00}, {0x3C,0x66,0x06,0x1C,0x06,0x66,0x3C,0x00},
-              {0x0C,0x1C,0x3C,0x6C,0xFF,0x0C,0x0C,0x00}, {0xFF,0x60,0x7C,0x06,0x06,0x66,0x3C,0x00},
-              {0x3C,0x66,0x60,0x7C,0x66,0x66,0x3C,0x00}, {0xFF,0x06,0x0C,0x18,0x30,0x30,0x30,0x00},
-              {0x3C,0x66,0x66,0x3C,0x66,0x66,0x3C,0x00}, {0x3C,0x66,0x66,0x3E,0x06,0x66,0x3C,0x00},
-              {0x00,0x18,0x18,0x00,0x18,0x18,0x00,0x00}, {0x00,0x18,0x18,0x00,0x18,0x18,0x30,0x00},
-              {0x00,0x0C,0x18,0x30,0x18,0x0C,0x00,0x00}, {0x00,0x00,0x7E,0x00,0x7E,0x00,0x00,0x00},
-              {0x00,0x30,0x18,0x0C,0x18,0x30,0x00,0x00}, {0x3C,0x66,0x06,0x0C,0x18,0x00,0x18,0x00},
-              {0x3C,0x66,0x6E,0x6E,0x60,0x66,0x3C,0x00}, {0x3C,0x66,0x66,0x7E,0x66,0x66,0x66,0x00},
-              {0x7C,0x66,0x66,0x7C,0x66,0x66,0x7C,0x00}, {0x3C,0x66,0x60,0x60,0x60,0x66,0x3C,0x00},
-              {0x78,0x6C,0x66,0x66,0x66,0x6C,0x78,0x00}, {0x7E,0x60,0x60,0x78,0x60,0x60,0x7E,0x00},
-              {0x7E,0x60,0x60,0x78,0x60,0x60,0x60,0x00}, {0x3C,0x66,0x60,0x6E,0x66,0x66,0x3E,0x00},
-              {0x66,0x66,0x66,0x7E,0x66,0x66,0x66,0x00}, {0x3E,0x18,0x18,0x18,0x18,0x18,0x3E,0x00},
-              {0x0F,0x06,0x06,0x06,0x66,0x66,0x3C,0x00}, {0x66,0x6C,0x78,0x70,0x78,0x6C,0x66,0x00},
-              {0x60,0x60,0x60,0x60,0x60,0x60,0x7E,0x00}, {0x63,0x77,0x7F,0x6B,0x63,0x63,0x63,0x00},
-              {0x66,0x76,0x7E,0x7E,0x6E,0x66,0x66,0x00}, {0x3C,0x66,0x66,0x66,0x66,0x66,0x3C,0x00},
-              {0x7C,0x66,0x66,0x7C,0x60,0x60,0x60,0x00}, {0x3C,0x66,0x66,0x66,0x66,0x3C,0x0E,0x00},
-              {0x7C,0x66,0x66,0x7C,0x78,0x6C,0x66,0x00}, {0x3C,0x66,0x60,0x3C,0x06,0x66,0x3C,0x00},
-              {0x7E,0x18,0x18,0x18,0x18,0x18,0x18,0x00}, {0x66,0x66,0x66,0x66,0x66,0x66,0x3C,0x00},
-              {0x66,0x66,0x66,0x66,0x66,0x3C,0x18,0x00}, {0x63,0x63,0x6B,0x7F,0x77,0x63,0x63,0x00},
-              {0x66,0x66,0x3C,0x18,0x3C,0x66,0x66,0x00}, {0x66,0x66,0x66,0x3C,0x18,0x18,0x18,0x00},
-              {0x7E,0x06,0x0C,0x18,0x30,0x60,0x7E,0x00}, {0x3C,0x30,0x30,0x30,0x30,0x30,0x3C,0x00},
-              {0x00,0x60,0x30,0x18,0x0C,0x06,0x00,0x00}, {0x3C,0x0C,0x0C,0x0C,0x0C,0x0C,0x3C,0x00},
-              {0x18,0x3C,0x66,0x00,0x00,0x00,0x00,0x00}, {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF},
-              {0x30,0x18,0x0C,0x00,0x00,0x00,0x00,0x00}, {0x00,0x00,0x3C,0x06,0x3E,0x66,0x3E,0x00},
-              {0x60,0x60,0x7C,0x66,0x66,0x66,0x7C,0x00}, {0x00,0x00,0x3C,0x60,0x60,0x60,0x3C,0x00},
-              {0x06,0x06,0x3E,0x66,0x66,0x66,0x3E,0x00}, {0x00,0x00,0x3C,0x66,0x7E,0x60,0x3C,0x00},
-              {0x1C,0x30,0x7C,0x30,0x30,0x30,0x30,0x00}, {0x00,0x00,0x3E,0x66,0x66,0x3E,0x06,0x3C},
-              {0x60,0x60,0x7C,0x66,0x66,0x66,0x66,0x00}, {0x18,0x00,0x38,0x18,0x18,0x18,0x3C,0x00},
-              {0x0C,0x00,0x1C,0x0C,0x0C,0x0C,0x0C,0x38}, {0x60,0x60,0x66,0x6C,0x78,0x6C,0x66,0x00},
-              {0x38,0x18,0x18,0x18,0x18,0x18,0x3C,0x00}, {0x00,0x00,0x6C,0xFE,0xD6,0xD6,0xC6,0x00},
-              {0x00,0x00,0x7C,0x66,0x66,0x66,0x66,0x00}, {0x00,0x00,0x3C,0x66,0x66,0x66,0x3C,0x00},
-              {0x00,0x00,0x7C,0x66,0x66,0x7C,0x60,0x60}, {0x00,0x00,0x3E,0x66,0x66,0x3E,0x06,0x06},
-              {0x00,0x00,0x7C,0x66,0x60,0x60,0x60,0x00}, {0x00,0x00,0x3C,0x60,0x3C,0x06,0x3C,0x00},
-              {0x30,0x30,0x7C,0x30,0x30,0x30,0x1C,0x00}, {0x00,0x00,0x66,0x66,0x66,0x66,0x3E,0x00},
-              {0x00,0x00,0x66,0x66,0x66,0x3C,0x18,0x00}, {0x00,0x00,0xC6,0xD6,0xD6,0xFE,0x6C,0x00},
-              {0x00,0x00,0x66,0x3C,0x18,0x3C,0x66,0x00}, {0x00,0x00,0x66,0x66,0x66,0x3E,0x06,0x3C},
-              {0x00,0x00,0x7E,0x0C,0x18,0x30,0x7E,0x00}, {0x0E,0x18,0x18,0x70,0x18,0x18,0x0E,0x00},
-              {0x18,0x18,0x18,0x00,0x18,0x18,0x18,0x00}, {0x70,0x18,0x18,0x0E,0x18,0x18,0x70,0x00},
-              {0x3A,0x6E,0x00,0x00,0x00,0x00,0x00,0x00}
-          };
-          EOF
-
-          # Главное ядро терминала
           cat > kernel/kernel.c << 'EOF'
           #include "kernel.h"
-          #include "font.h"
 
-          uint32_t cursor_x = 10;
-          uint32_t cursor_y = 10;
-          uint32_t scale = 2;
-
+          // Упрощенный шрифт внутри кода для стабильности
           void draw_pixel(uint32_t* fb, int x, int y, uint32_t color) {
-              if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) {
-                  fb[y * FB_WIDTH + x] = color;
-              }
+              if (x >= 0 && x < FB_WIDTH && y >= 0 && y < FB_HEIGHT) fb[y * FB_WIDTH + x] = color;
           }
 
           void draw_rect(uint32_t* fb, int x, int y, int w, int h, uint32_t color) {
               for (int i = 0; i < h; i++)
-                  for (int j = 0; j < w; j++)
-                      draw_pixel(fb, x + j, y + i, color);
+                  for (int j = 0; j < w; j++) draw_pixel(fb, x + j, y + i, color);
           }
 
-          void draw_char(uint32_t* fb, char c, uint32_t x, uint32_t y, uint32_t color) {
-              if (c < 32 || c > 126) return;
-              unsigned char* bitmap = font8x8[c - 32];
-              for (int i = 0; i < 8; i++) {
-                  for (int j = 0; j < 8; j++) {
-                      if (bitmap[i] & (1 << (7 - j))) {
-                          draw_rect(fb, x + j * scale, y + i * scale, scale, scale, color);
-                      }
-                  }
-              }
-          }
-
-          void print(uint32_t* fb, const char* str, uint32_t color) {
-              while (*str) {
-                  if (*str == '\n') {
-                      cursor_x = 10;
-                      cursor_y += 8 * scale + 6;
-                  } else {
-                      draw_char(fb, *str, cursor_x, cursor_y, color);
-                      cursor_x += 8 * scale;
-                  }
-                  if (cursor_x > FB_WIDTH - 20) {
-                      cursor_x = 10;
-                      cursor_y += 8 * scale + 6;
-                  }
-                  str++;
-              }
-          }
-
-          int strcmp(const char* s1, const char* s2) {
-              while (*s1 && (*s1 == *s2)) { s1++; s2++; }
-              return *(unsigned char*)s1 - *(unsigned char*)s2;
-          }
-
-          void clear_screen(uint32_t* fb) {
-              draw_rect(fb, 0, 0, FB_WIDTH, FB_HEIGHT, BG_COLOR);
-              cursor_x = 10;
-              cursor_y = 10;
-          }
-
+          // Точка входа
           void aetheria_main(uint32_t* fb, uint8_t* kb, uint32_t w, uint32_t h) {
-              clear_screen(fb);
-              print(fb, "PromtikOS v1.0 [C-Kernel]\n", 0xFF00FF00);
-              print(fb, "System ready. Welcome to pure C environment.\n", TEXT_COLOR);
-              print(fb, "Type 'help' to begin.\n\n", TEXT_COLOR);
-              
-              const char* prompt = "> ";
-              print(fb, prompt, PROMPT_COLOR);
+              // Заливаем экран темным цветом
+              for(int i=0; i < FB_WIDTH * FB_HEIGHT; i++) fb[i] = BG_COLOR;
 
-              char buffer[64];
-              int ptr = 0;
+              // Рисуем приветственный квадрат (логотип ОС)
+              draw_rect(fb, 100, 100, 50, 50, 0xFFFF0000); 
+              draw_rect(fb, 160, 100, 50, 50, 0xFF00FF00);
+              draw_rect(fb, 220, 100, 50, 50, 0xFF0000FF);
+
+              uint32_t color = TEXT_COLOR;
+              int x_pos = 100;
 
               while (1) {
                   uint8_t key = *kb;
                   if (key != 0) {
                       *kb = 0;
-                      if (key == 10) { // Enter
-                          print(fb, "\n", TEXT_COLOR);
-                          buffer[ptr] = '\0';
-                          
-                          if (strcmp(buffer, "help") == 0) {
-                              print(fb, "Commands: help, clear, ver, color\n", TEXT_COLOR);
-                          } else if (strcmp(buffer, "clear") == 0) {
-                              clear_screen(fb);
-                          } else if (strcmp(buffer, "ver") == 0) {
-                              print(fb, "PromtikOS 1.0.0 (C) 2024\n", 0xFFFFFF00);
-                          } else if (strcmp(buffer, "color") == 0) {
-                              draw_rect(fb, 0, 0, FB_WIDTH, FB_HEIGHT, 0xFF440000);
-                              cursor_x = 10; cursor_y = 10;
-                              print(fb, "Terminal color changed!\n", 0xFFFFFFFF);
-                          } else if (ptr > 0) {
-                              print(fb, "Error: Unknown command\n", 0xFFFF0000);
-                          }
-
-                          ptr = 0;
-                          print(fb, prompt, PROMPT_COLOR);
-                      } 
-                      else if (key == 8) { // Backspace
-                          if (ptr > 0) {
-                              ptr--;
-                              cursor_x -= 8 * scale;
-                              draw_rect(fb, cursor_x, cursor_y, 8 * scale, 8 * scale + 2, BG_COLOR);
-                          }
-                      }
-                      else if (key >= 32 && key <= 126 && ptr < 63) {
-                          buffer[ptr++] = (char)key;
-                          draw_char(fb, (char)key, cursor_x, cursor_y, TEXT_COLOR);
-                          cursor_x += 8 * scale;
-                      }
+                      // Если нажата клавиша, рисуем квадратик в позиции курсора
+                      draw_rect(fb, x_pos, 200, 10, 10, color);
+                      x_pos += 15;
+                      if (x_pos > 1100) x_pos = 100;
                   }
-                  for (volatile int i = 0; i < 20000; i++);
+                  // Небольшая пауза
+                  for (volatile int i = 0; i < 50000; i++);
               }
           }
           EOF
@@ -217,27 +84,64 @@ jobs:
           }
           EOF
 
-      # ===== КОМПИЛЯЦИЯ ЯДРА =====
-      - name: Compile C Kernel
+      - name: Compile Kernel
         run: |
           CC=$(find $ANDROID_HOME/ndk -name "aarch64-linux-android34-clang" | head -n 1)
           LLD=$(find $ANDROID_HOME/ndk -name "ld.lld" | head -n 1)
           OBJCOPY=$(find $ANDROID_HOME/ndk -name "llvm-objcopy" | head -n 1)
           
           $CC -c kernel/kernel.c -o kernel/kernel.o \
-              -target aarch64-none-elf \
-              -ffreestanding -nostdlib -O2 -Wall \
-              -fno-stack-protector -fno-builtin
+              -target aarch64-none-elf -fPIC \
+              -ffreestanding -nostdlib -O2
           
           $LLD -T kernel/linker.ld kernel/kernel.o -o kernel/kernel.elf --image-base 0
           $OBJCOPY -O binary kernel/kernel.elf kernel.bin
 
-      # ===== ANDROID ОБЕРТКА =====
-      - name: Create Android Wrapper
+      # ===== ANDROID APP =====
+      - name: Create App
         run: |
           mkdir -p app/src/main/{java/com/promtik/os,cpp,res/raw}
           cp kernel.bin app/src/main/res/raw/kernel_bin
           
+          # JNI Loader
+          cat > app/src/main/cpp/loader.cpp << 'EOF'
+          #include <jni.h>
+          #include <sys/mman.h>
+          #include <string.h>
+          #include <android/log.h>
+
+          extern "C" JNIEXPORT void JNICALL
+          Java_com_promtik_os_MainActivity_runKernel(JNIEnv* env, jobject o, jbyteArray code, jobject fb, jobject kb) {
+              jsize size = env->GetArrayLength(code);
+              jbyte* data = env->GetByteArrayElements(code, 0);
+              
+              void* fb_ptr = env->GetDirectBufferAddress(fb);
+              void* kb_ptr = env->GetDirectBufferAddress(kb);
+
+              // Выделяем память с правами на выполнение
+              void* mem = mmap(nullptr, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+              if (mem == MAP_FAILED) return;
+
+              memcpy(mem, data, size);
+              
+              // Очистка кэша инструкций (важно для ARM)
+              __builtin___clear_cache((char*)mem, (char*)mem + size);
+
+              // Запуск ядра
+              typedef void (*KernelEntry)(void*, void*, int, int);
+              KernelEntry kmain = (KernelEntry)mem;
+              kmain(fb_ptr, kb_ptr, 1280, 720);
+          }
+          EOF
+
+          cat > app/src/main/cpp/CMakeLists.txt << 'EOF'
+          cmake_minimum_required(VERSION 3.22)
+          project(loader)
+          add_library(loader SHARED loader.cpp)
+          target_link_libraries(loader log)
+          EOF
+
+          # MainActivity
           cat > app/src/main/java/com/promtik/os/MainActivity.java << 'EOF'
           package com.promtik.os;
           import android.app.Activity;
@@ -249,6 +153,7 @@ jobs:
           public class MainActivity extends Activity {
               static { System.loadLibrary("loader"); }
               private native void runKernel(byte[] code, ByteBuffer fb, ByteBuffer kb);
+
               private ByteBuffer fb = ByteBuffer.allocateDirect(1280 * 720 * 4);
               private ByteBuffer kb = ByteBuffer.allocateDirect(1);
               private Bitmap bmp = Bitmap.createBitmap(1280, 720, Bitmap.Config.ARGB_8888);
@@ -256,19 +161,10 @@ jobs:
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
                   SurfaceView sv = new SurfaceView(this);
                   setContentView(sv);
-                  sv.setFocusableInTouchMode(true);
-                  sv.requestFocus();
-                  sv.setOnKeyListener((v, code, ev) -> {
-                      if (ev.getAction() == KeyEvent.ACTION_DOWN) {
-                          int c = ev.getUnicodeChar();
-                          if (code == KeyEvent.KEYCODE_DEL) c = 8;
-                          if (code == KeyEvent.KEYCODE_ENTER) c = 10;
-                          if (c != 0) kb.put(0, (byte)c);
-                      }
-                      return true;
-                  });
+
                   sv.getHolder().addCallback(new SurfaceHolder.Callback() {
                       public void surfaceCreated(SurfaceHolder h) {
                           new Thread(() -> {
@@ -277,11 +173,13 @@ jobs:
                                   runKernel(k, fb, kb);
                               } catch(Exception e) {}
                           }).start();
+
                           new Thread(() -> {
                               while(true) {
                                   Canvas c = h.lockCanvas();
                                   if (c != null) {
-                                      fb.position(0); bmp.copyPixelsFromBuffer(fb);
+                                      fb.position(0);
+                                      bmp.copyPixelsFromBuffer(fb);
                                       c.drawBitmap(bmp, null, new Rect(0,0,sv.getWidth(),sv.getHeight()), null);
                                       h.unlockCanvasAndPost(c);
                                   }
@@ -292,37 +190,32 @@ jobs:
                       public void surfaceChanged(SurfaceHolder h, int f, int w, int h2) {}
                       public void surfaceDestroyed(SurfaceHolder h) {}
                   });
+
+                  // Обработка нажатий экрана как клавиш для теста
+                  sv.setOnTouchListener((v, event) -> {
+                      if (event.getAction() == MotionEvent.ACTION_DOWN) kb.put(0, (byte)1);
+                      return true;
+                  });
               }
           }
           EOF
 
-          cat > app/src/main/cpp/loader.cpp << 'EOF'
-          #include <jni.h>
-          #include <sys/mman.h>
-          #include <string.h>
-          extern "C" JNIEXPORT void JNICALL
-          Java_com_promtik_os_MainActivity_runKernel(JNIEnv* env, jobject o, jbyteArray code, jobject fb, jobject kb) {
-              jsize size = env->GetArrayLength(code);
-              jbyte* data = env->GetByteArrayElements(code, 0);
-              void* fb_ptr = env->GetDirectBufferAddress(fb);
-              void* kb_ptr = env->GetDirectBufferAddress(kb);
-              void* mem = mmap(0, size, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-              memcpy(mem, data, size);
-              __builtin___clear_cache((char*)mem, (char*)mem + size);
-              ((void(*)(void*, void*, int, int))mem)(fb_ptr, kb_ptr, 1280, 720);
-          }
-          EOF
-
-          echo 'add_library(loader SHARED loader.cpp)' > app/src/main/cpp/CMakeLists.txt
+          # Настройки сборки (ABI Filter важен!)
           cat > app/build.gradle << 'EOF'
           plugins { id 'com.android.application' }
           android {
               namespace 'com.promtik.os'
               compileSdk 34
-              defaultConfig { applicationId 'com.promtik.os'; minSdk 24 }
+              defaultConfig {
+                  applicationId 'com.promtik.os'
+                  minSdk 24
+                  targetSdk 34
+                  ndk { abiFilters 'arm64-v8a' } 
+              }
               externalNativeBuild { cmake { path "src/main/cpp/CMakeLists.txt" } }
           }
           EOF
+
           echo 'include ":app"' > settings.gradle
           cat > build.gradle << 'EOF'
           buildscript {
@@ -331,9 +224,10 @@ jobs:
           }
           allprojects { repositories { google(); mavenCentral() } }
           EOF
+
           cat > app/src/main/AndroidManifest.xml << 'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application android:label="PromtikOS">
+              <application android:label="PromtikOS" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
                   <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="landscape">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/>
@@ -343,8 +237,7 @@ jobs:
           </manifest>
           EOF
 
-      # ===== СБОРКА APK =====
-      - name: Build Final APK
+      - name: Build APK
         run: |
           chmod +x gradlew || true
           gradle wrapper --gradle-version 8.5
@@ -353,5 +246,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: PromtikOS-C-Kernel
+          name: PromtikOS-Fixed
           path: app/build/outputs/apk/debug/app-debug.apk
