@@ -18,19 +18,18 @@ jobs:
       - name: Setup Android SDK & NDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools ndk;25.2.9519653'
+          packages: 'platform-tools build-tools;34.0.0 platforms;android-34 ndk;25.2.9519653'
 
-      # ===== СОЗДАНИЕ ЯДРА НА C =====
-      - name: Create C Kernel
+      # ===== СОЗДАНИЕ ИСХОДНИКОВ ЯДРА =====
+      - name: Create C Kernel Source
         run: |
           mkdir -p kernel
           
-          # 1. Заголовочный файл с основными типами
+          # Заголовочный файл
           cat > kernel/kernel.h << 'EOF'
           typedef unsigned int uint32_t;
           typedef unsigned char uint8_t;
           typedef unsigned long size_t;
-
           #define FB_WIDTH 1280
           #define FB_HEIGHT 720
           #define BG_COLOR 0xFF1A1B26
@@ -38,7 +37,7 @@ jobs:
           #define PROMPT_COLOR 0xFF7AA2F7
           EOF
 
-          # 2. Шрифт (8x8)
+          # Шрифт 8x8
           cat > kernel/font.h << 'EOF'
           unsigned char font8x8[95][8] = {
               {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}, {0x18,0x3C,0x3C,0x18,0x18,0x00,0x18,0x00},
@@ -92,7 +91,7 @@ jobs:
           };
           EOF
 
-          # 3. Основной код ядра (ядро терминала)
+          # Главное ядро терминала
           cat > kernel/kernel.c << 'EOF'
           #include "kernel.h"
           #include "font.h"
@@ -129,14 +128,14 @@ jobs:
               while (*str) {
                   if (*str == '\n') {
                       cursor_x = 10;
-                      cursor_y += 8 * scale + 4;
+                      cursor_y += 8 * scale + 6;
                   } else {
                       draw_char(fb, *str, cursor_x, cursor_y, color);
                       cursor_x += 8 * scale;
                   }
                   if (cursor_x > FB_WIDTH - 20) {
                       cursor_x = 10;
-                      cursor_y += 8 * scale + 4;
+                      cursor_y += 8 * scale + 6;
                   }
                   str++;
               }
@@ -153,64 +152,61 @@ jobs:
               cursor_y = 10;
           }
 
-          // Точка входа в ядро
           void aetheria_main(uint32_t* fb, uint8_t* kb, uint32_t w, uint32_t h) {
               clear_screen(fb);
-              print(fb, "AetheriaOS v1.0 (Bare Metal C)\n", 0xFF00FF00);
-              print(fb, "Kernel loaded at 0x0000\n", TEXT_COLOR);
-              print(fb, "Type 'help' for commands.\n\n", TEXT_COLOR);
+              print(fb, "PromtikOS v1.0 [C-Kernel]\n", 0xFF00FF00);
+              print(fb, "System ready. Welcome to pure C environment.\n", TEXT_COLOR);
+              print(fb, "Type 'help' to begin.\n\n", TEXT_COLOR);
               
-              const char* prompt = "aetheria# ";
+              const char* prompt = "> ";
               print(fb, prompt, PROMPT_COLOR);
 
-              char input_buffer[64];
-              int input_ptr = 0;
+              char buffer[64];
+              int ptr = 0;
 
               while (1) {
                   uint8_t key = *kb;
                   if (key != 0) {
-                      *kb = 0; // Сброс клавиши после чтения
-
+                      *kb = 0;
                       if (key == 10) { // Enter
                           print(fb, "\n", TEXT_COLOR);
-                          input_buffer[input_ptr] = '\0';
+                          buffer[ptr] = '\0';
                           
-                          if (strcmp(input_buffer, "help") == 0) {
-                              print(fb, "Available: help, clear, about, ver\n", TEXT_COLOR);
-                          } else if (strcmp(input_buffer, "clear") == 0) {
+                          if (strcmp(buffer, "help") == 0) {
+                              print(fb, "Commands: help, clear, ver, color\n", TEXT_COLOR);
+                          } else if (strcmp(buffer, "clear") == 0) {
                               clear_screen(fb);
-                          } else if (strcmp(input_buffer, "about") == 0) {
-                              print(fb, "AetheriaOS: A real C kernel running in Android sandbox.\n", TEXT_COLOR);
-                          } else if (strcmp(input_buffer, "ver") == 0) {
-                              print(fb, "Version 1.0.0-C\n", 0xFFFFFF00);
-                          } else if (input_ptr > 0) {
-                              print(fb, "Unknown command\n", 0xFFFF0000);
+                          } else if (strcmp(buffer, "ver") == 0) {
+                              print(fb, "PromtikOS 1.0.0 (C) 2024\n", 0xFFFFFF00);
+                          } else if (strcmp(buffer, "color") == 0) {
+                              draw_rect(fb, 0, 0, FB_WIDTH, FB_HEIGHT, 0xFF440000);
+                              cursor_x = 10; cursor_y = 10;
+                              print(fb, "Terminal color changed!\n", 0xFFFFFFFF);
+                          } else if (ptr > 0) {
+                              print(fb, "Error: Unknown command\n", 0xFFFF0000);
                           }
 
-                          input_ptr = 0;
+                          ptr = 0;
                           print(fb, prompt, PROMPT_COLOR);
                       } 
                       else if (key == 8) { // Backspace
-                          if (input_ptr > 0) {
-                              input_ptr--;
+                          if (ptr > 0) {
+                              ptr--;
                               cursor_x -= 8 * scale;
-                              draw_rect(fb, cursor_x, cursor_y, 8 * scale, 8 * scale, BG_COLOR);
+                              draw_rect(fb, cursor_x, cursor_y, 8 * scale, 8 * scale + 2, BG_COLOR);
                           }
                       }
-                      else if (key >= 32 && key <= 126 && input_ptr < 63) {
-                          input_buffer[input_ptr++] = (char)key;
+                      else if (key >= 32 && key <= 126 && ptr < 63) {
+                          buffer[ptr++] = (char)key;
                           draw_char(fb, (char)key, cursor_x, cursor_y, TEXT_COLOR);
                           cursor_x += 8 * scale;
                       }
                   }
-                  
-                  // Элементарная задержка (Spin loop)
-                  for (volatile int i = 0; i < 10000; i++);
+                  for (volatile int i = 0; i < 20000; i++);
               }
           }
           EOF
 
-          # 4. Скрипт линковки (чтобы aetheria_main была в самом начале)
           cat > kernel/linker.ld << 'EOF'
           ENTRY(aetheria_main)
           SECTIONS {
@@ -225,26 +221,25 @@ jobs:
       - name: Compile C Kernel
         run: |
           CC=$(find $ANDROID_HOME/ndk -name "aarch64-linux-android34-clang" | head -n 1)
+          LLD=$(find $ANDROID_HOME/ndk -name "ld.lld" | head -n 1)
           OBJCOPY=$(find $ANDROID_HOME/ndk -name "llvm-objcopy" | head -n 1)
           
-          # Компилируем под голый ARM64 (aarch64)
           $CC -c kernel/kernel.c -o kernel/kernel.o \
               -target aarch64-none-elf \
-              -ffreestanding -nostdlib -O2 -Wall
+              -ffreestanding -nostdlib -O2 -Wall \
+              -fno-stack-protector -fno-builtin
           
-          # Линкуем в бинарник
-          ld.lld -T kernel/linker.ld kernel/kernel.o -o kernel/kernel.elf --image-base 0
+          $LLD -T kernel/linker.ld kernel/kernel.o -o kernel/kernel.elf --image-base 0
           $OBJCOPY -O binary kernel/kernel.elf kernel.bin
 
-      # ===== СОЗДАНИЕ ANDROID APP (ОБОЛОЧКА) =====
-      - name: Create Android Project
+      # ===== ANDROID ОБЕРТКА =====
+      - name: Create Android Wrapper
         run: |
-          mkdir -p app/src/main/{java/com/aetheria/os,cpp,res/raw,res/layout}
+          mkdir -p app/src/main/{java/com/promtik/os,cpp,res/raw}
           cp kernel.bin app/src/main/res/raw/kernel_bin
           
-          # MainActivity (Java)
-          cat > app/src/main/java/com/aetheria/os/MainActivity.java << 'EOF'
-          package com.aetheria.os;
+          cat > app/src/main/java/com/promtik/os/MainActivity.java << 'EOF'
+          package com.promtik.os;
           import android.app.Activity;
           import android.graphics.*;
           import android.os.Bundle;
@@ -254,46 +249,40 @@ jobs:
           public class MainActivity extends Activity {
               static { System.loadLibrary("loader"); }
               private native void runKernel(byte[] code, ByteBuffer fb, ByteBuffer kb);
-
-              private ByteBuffer frameBuffer = ByteBuffer.allocateDirect(1280 * 720 * 4);
-              private ByteBuffer keyBuffer = ByteBuffer.allocateDirect(1);
-              private Bitmap screen = Bitmap.createBitmap(1280, 720, Bitmap.Config.ARGB_8888);
+              private ByteBuffer fb = ByteBuffer.allocateDirect(1280 * 720 * 4);
+              private ByteBuffer kb = ByteBuffer.allocateDirect(1);
+              private Bitmap bmp = Bitmap.createBitmap(1280, 720, Bitmap.Config.ARGB_8888);
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   SurfaceView sv = new SurfaceView(this);
                   setContentView(sv);
-                  
                   sv.setFocusableInTouchMode(true);
                   sv.requestFocus();
-
                   sv.setOnKeyListener((v, code, ev) -> {
                       if (ev.getAction() == KeyEvent.ACTION_DOWN) {
                           int c = ev.getUnicodeChar();
                           if (code == KeyEvent.KEYCODE_DEL) c = 8;
                           if (code == KeyEvent.KEYCODE_ENTER) c = 10;
-                          if (c != 0) keyBuffer.put(0, (byte)c);
+                          if (c != 0) kb.put(0, (byte)c);
                       }
                       return true;
                   });
-
                   sv.getHolder().addCallback(new SurfaceHolder.Callback() {
                       public void surfaceCreated(SurfaceHolder h) {
                           new Thread(() -> {
                               try {
                                   byte[] k = getResources().openRawResource(R.raw.kernel_bin).readAllBytes();
-                                  runKernel(k, frameBuffer, keyBuffer);
+                                  runKernel(k, fb, kb);
                               } catch(Exception e) {}
                           }).start();
-                          
                           new Thread(() -> {
                               while(true) {
                                   Canvas c = h.lockCanvas();
                                   if (c != null) {
-                                      frameBuffer.position(0);
-                                      screen.copyPixelsFromBuffer(frameBuffer);
-                                      c.drawBitmap(screen, null, new Rect(0,0,sv.getWidth(),sv.getHeight()), null);
+                                      fb.position(0); bmp.copyPixelsFromBuffer(fb);
+                                      c.drawBitmap(bmp, null, new Rect(0,0,sv.getWidth(),sv.getHeight()), null);
                                       h.unlockCanvasAndPost(c);
                                   }
                                   try { Thread.sleep(16); } catch(Exception e){}
@@ -307,41 +296,33 @@ jobs:
           }
           EOF
 
-          # Loader (C++)
           cat > app/src/main/cpp/loader.cpp << 'EOF'
           #include <jni.h>
           #include <sys/mman.h>
           #include <string.h>
-
           extern "C" JNIEXPORT void JNICALL
-          Java_com_aetheria_os_MainActivity_runKernel(JNIEnv* env, jobject obj, jbyteArray code, jobject fb, jobject kb) {
+          Java_com_promtik_os_MainActivity_runKernel(JNIEnv* env, jobject o, jbyteArray code, jobject fb, jobject kb) {
               jsize size = env->GetArrayLength(code);
               jbyte* data = env->GetByteArrayElements(code, 0);
               void* fb_ptr = env->GetDirectBufferAddress(fb);
               void* kb_ptr = env->GetDirectBufferAddress(kb);
-
               void* mem = mmap(0, size, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
               memcpy(mem, data, size);
               __builtin___clear_cache((char*)mem, (char*)mem + size);
-
               ((void(*)(void*, void*, int, int))mem)(fb_ptr, kb_ptr, 1280, 720);
           }
           EOF
 
-          # CMake
           echo 'add_library(loader SHARED loader.cpp)' > app/src/main/cpp/CMakeLists.txt
-
-          # Gradle & Manifest
           cat > app/build.gradle << 'EOF'
           plugins { id 'com.android.application' }
           android {
-              namespace 'com.aetheria.os'
+              namespace 'com.promtik.os'
               compileSdk 34
-              defaultConfig { applicationId 'com.aetheria.os'; minSdk 24 }
+              defaultConfig { applicationId 'com.promtik.os'; minSdk 24 }
               externalNativeBuild { cmake { path "src/main/cpp/CMakeLists.txt" } }
           }
           EOF
-          
           echo 'include ":app"' > settings.gradle
           cat > build.gradle << 'EOF'
           buildscript {
@@ -350,10 +331,9 @@ jobs:
           }
           allprojects { repositories { google(); mavenCentral() } }
           EOF
-
           cat > app/src/main/AndroidManifest.xml << 'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application android:label="AetheriaOS-C">
+              <application android:label="PromtikOS">
                   <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="landscape">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/>
@@ -373,5 +353,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AetheriaOS-C-BareMetal
+          name: PromtikOS-C-Kernel
           path: app/build/outputs/apk/debug/app-debug.apk
